@@ -10,8 +10,8 @@ import numpy as np
 ENCODING = "latin1"
 
 
-def load_wind(path: Path) -> pd.DataFrame:
-    """Load and clean wind data; timestamps stay UTC-aware."""
+def load_wind(path: Path, year: int | None = None) -> pd.DataFrame:
+    """Load and clean wind data; optionally prefilter by year (UTC) for speed."""
     df = pd.read_csv(path, sep=";", encoding=ENCODING)
     df.columns = [c.strip() for c in df.columns]
     df = df.rename(columns={"F": "wind_speed_ms", "D": "wind_dir_deg"})
@@ -21,11 +21,15 @@ def load_wind(path: Path) -> pd.DataFrame:
     df["timestamp"] = pd.to_datetime(
         df["MESS_DATUM"].astype(str), format="%Y%m%d%H", errors="coerce", utc=True
     )
+    if year is not None:
+        start = pd.Timestamp(f"{year}-01-01 00:00:00", tz="UTC")
+        end = pd.Timestamp(f"{year + 1}-01-01 00:00:00", tz="UTC")
+        df = df.loc[(df["timestamp"] >= start) & (df["timestamp"] < end)]
     return df
 
 
-def load_cloud(path: Path) -> pd.DataFrame:
-    """Load and clean cloudiness data; timestamps stay UTC-aware."""
+def load_cloud(path: Path, year: int | None = None) -> pd.DataFrame:
+    """Load and clean cloudiness data; optionally prefilter by year (UTC) for speed."""
     df = pd.read_csv(path, sep=";", encoding=ENCODING)
     df.columns = [c.strip() for c in df.columns]
     df = df.rename(
@@ -39,6 +43,10 @@ def load_cloud(path: Path) -> pd.DataFrame:
         df["MESS_DATUM"].astype(str), format="%Y%m%d%H", errors="coerce", utc=True
     )
     df = df.sort_values("timestamp").reset_index(drop=True)
+    if year is not None:
+        start = pd.Timestamp(f"{year}-01-01 00:00:00", tz="UTC")
+        end = pd.Timestamp(f"{year + 1}-01-01 00:00:00", tz="UTC")
+        df = df.loc[(df["timestamp"] >= start) & (df["timestamp"] < end)]
     return df
 
 
@@ -73,8 +81,8 @@ def filter_year(df: pd.DataFrame, year: int) -> pd.DataFrame:
 
 
 def load_and_merge(wind_path: Path, cloud_path: Path, year: int) -> Tuple[pd.DataFrame, Path]:
-    wind = load_wind(wind_path)
-    cloud = load_cloud(cloud_path)
+    wind = load_wind(wind_path, year=year)
+    cloud = load_cloud(cloud_path, year=year)
     merged = merge_wind_cloud(wind, cloud)
     merged_year = filter_year(merged, year)
     return merged_year, wind_path.parent
